@@ -94,25 +94,25 @@ function drawField(frame,obj){
     cv.rectangle(frame,obj.TL_RIGHT_GOAL,obj.BR_RIGHT_GOAL,obj.RIGHT_GOAL_COLOR,3);
 }
 
-
-const webcamElement = document.getElementById('webcam');
+// const videoSource = document.querySelector('select#videoSource');
+// const webcamElement = videoSource.value;//document.getElementById('webcam');
 const canvasElement = document.getElementById('canvas');
-const webcam = new Webcam(webcamElement, 'user', canvasElement);
+// var webcam = new Webcam(webcamElement, 'user', canvasElement);
 var streaming=true;
-webcam.start()
-  .then(result =>{
-    console.log("webcam started");
-    streaming = true;
+// webcam.start()
+//   .then(result =>{
+//     console.log("webcam started");
+//     streaming = true;
 
-  })
-  .catch(err => {
-    console.log(err);
-    streaming = false;
+//   })
+//   .catch(err => {
+//     console.log(err);
+//     streaming = false;
 
-});
-//webcam.flip();
+// });
+// //webcam.flip();
 
-let video = document.getElementById('webcam');
+let video = document.getElementById('video');//document.getElementById('webcam');
 let cap = new cv.VideoCapture(video);
 
 // take first frame of the video
