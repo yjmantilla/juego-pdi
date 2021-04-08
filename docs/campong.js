@@ -18,10 +18,7 @@ node.addEventListener("keydown", function(event) {
 
 });
 
-
-
 const argFact = (compareFn) => (array) => array.map((el, idx) => [el, idx]).reduce(compareFn)[1]
-
 const argMax = argFact((min, el) => (el[0] > min[0] ? el : min))
 const argMin = argFact((max, el) => (el[0] < max[0] ? el : max))
 
@@ -146,6 +143,7 @@ roi.delete(); hsvRoi.delete(); mask.delete(); low.delete(); high.delete(); hsvRo
 let termCrit = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1);
 
 let hsv = new cv.Mat(video.height, video.width, cv.CV_8UC3);
+let single_color = new cv.Mat(video.height, video.width, cv.CV_8UC3); //investigar cv8uc3
 let hsvVec = new cv.MatVector();
 hsvVec.push_back(hsv);
 let dst = new cv.Mat();
@@ -170,28 +168,45 @@ function processVideo() {
 
         // start processing.
         cap.read(frame);
+        let rgbaPlanes = new cv.MatVector();
+        // Split the Mat
+        cv.split(frame, rgbaPlanes);
+        // Get R channel
         cv.cvtColor(frame, hsv, cv.COLOR_RGBA2RGB);
-        cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
-        cv.calcBackProject(hsvVec, [0], roiHist, dst, [0, 180], 1);
+        cv.cvtColor(hsv, hsv, cv.COLOR_RGB2GRAY);
+        console.log(frame);
+        
+        let matVec = new cv.MatVector();
+        // Push a Mat back into MatVector
+        matVec.push_back(hsv);
+        let R = rgbaPlanes.get(0);
+        // let matVecR = new cv.MatVector();
+        // matVecR.push_back(R);
+        let dst = new cv.Mat();
+        let mask = new cv.Mat();
+        let dtype = -1;
+        cv.subtract(R, hsv, dst, mask, dtype);
+        
+        // cv.calcBackProject(hsvVec, [0], roiHist, dst, [0, 180], 1);
 
         // apply camshift to get the new location
-        [trackBox, trackWindow] = cv.CamShift(dst, trackWindow, termCrit);
-        [, trackWindow2] = cv.meanShift(dst, trackWindow2, termCrit);
+        // [trackBox, trackWindow] = cv.CamShift(dst, trackWindow, termCrit);
+        // [, trackWindow2] = cv.meanShift(dst, trackWindow2, termCrit);
         // Draw it on image
-        let [x, y, w, h] = [trackWindow2.x, trackWindow2.y, trackWindow2.width, trackWindow2.height];
+        // let [x, y, w, h] = [trackWindow2.x, trackWindow2.y, trackWindow2.width, trackWindow2.height];
         // Draw it on image
-        let pts = cv.rotatedRectPoints(trackBox);
-        var frame2 = hsv;//frame,hsv;
+        // let pts = cv.rotatedRectPoints(trackBox);
+        let frame2 = dst;//frame,hsv;
         cv.flip(frame2, frame2, 1);// important that this is before object drawing
 
         drawField(frame2,field);
-        cv.rectangle(frame2, new cv.Point(x, y), new cv.Point(x+w, y+h), [0, 255, 0, 255], 2);
-        cv.line(frame2, pts[0], pts[1], [255, 0, 0, 255], 3);
-        cv.line(frame2, pts[1], pts[2], [255, 0, 0, 255], 3);
-        cv.line(frame2, pts[2], pts[3], [255, 0, 0, 255], 3);
-        cv.line(frame2, pts[3], pts[0], [255, 0, 0, 255], 3);
-        moveObject(puck);
+        //cv.rectangle(frame2, new cv.Point(x, y), new cv.Point(x+w, y+h), [0, 255, 0, 255], 2);
+        // cv.line(frame2, pts[0], pts[1], [255, 0, 0, 255], 3);
+        // cv.line(frame2, pts[1], pts[2], [255, 0, 0, 255], 3);
+        // cv.line(frame2, pts[2], pts[3], [255, 0, 0, 255], 3);
+        // cv.line(frame2, pts[3], pts[0], [255, 0, 0, 255], 3);
         bounceFromRect(puck,strikerr);
+        moveObject(puck);
         detectScore(scores,puck,field);// detecting scores must be before bouncing from walls
         bounceFromField(puck,field);
         //bounceFromRect(puck,strikerl);
@@ -201,6 +216,7 @@ function processVideo() {
         d3.select('#scorel').text(scores.left);
         d3.select('#scorer').text(scores.right);
 
+        //cv.imshow('canvasOut', frame2);
         cv.imshow('canvasOut', frame2);
         // schedule the next one.
         let delay = 1000/FPS - (Date.now() - begin);
@@ -386,4 +402,19 @@ function getRandomArbitrary(min, max) {
 
 function plusOrMinus(){
     return Math.random() < 0.5 ? -1 : 1;
+}
+
+function get_shape(a){
+    return [a.length,a[0].length];
+}
+
+function split_channels(src){
+    let row = src.matSize[0], col = src.matSize[1];
+    if (src.isContinuous()) {
+        let R = src.data[row * src.cols * src.channels() + col * src.channels()];
+        let G = src.data[row * src.cols * src.channels() + col * src.channels() + 1];
+        let B = src.data[row * src.cols * src.channels() + col * src.channels() + 2];
+        let A = src.data[row * src.cols * src.channels() + col * src.channels() + 3];
+        return [R,G,B,A]
+    }
 }
