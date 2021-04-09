@@ -108,17 +108,25 @@ var cfg={
         {
             return 2;
         }
-    }
+    },
+    circle_detector:{dp:1,minDist:45,high_th:75,accum_th:40,minR:0,maxR:640}
 };
 let video = document.getElementById('video');//document.getElementById('webcam');
 let cap = new cv.VideoCapture(video);
 
 let gui = new dat.GUI({ autoPlace: true, width: 450 });
 var cfgFolder = gui.addFolder('configuration');
-
+var circleFolder = gui.addFolder('circle detector');
 cfgFolder.add(cfg, 'low_th', 0, 255).name('low_th').step(1);
 cfgFolder.add(cfg, 'high_th', 0, 255).name('high_th').step(1);
 cfgFolder.add(cfg, 'color', ['R','G','B']);
+circleFolder.add(cfg.circle_detector,'dp',1,2).name('dp').step(1);
+circleFolder.add(cfg.circle_detector,'minDist',1,640).name('minDist').step(1);
+circleFolder.add(cfg.circle_detector,'high_th',1,100).name('high_th').step(1);
+circleFolder.add(cfg.circle_detector,'accum_th',1,100).name('accum_th').step(1);
+circleFolder.add(cfg.circle_detector,'minR',1,640).name('minR').step(1);
+circleFolder.add(cfg.circle_detector,'maxR',1,640).name('maxR').step(1);
+
 // add preview frame selector : gray, binary, color layer, identification, original, etc
 // take first frame of the video
 let frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);
@@ -133,7 +141,9 @@ var striker_margin = 5;
 velocify(puck);
 var striker_vel = 5;
 var strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
-var strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
+//var strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
+var strikerr = new Striker(field.LEFT_GOAL_R + striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
+
 const FPS = 30;
 let rgbaPlanes = new cv.MatVector();
 let the_color = rgbaPlanes.get(0);
@@ -151,6 +161,7 @@ function processVideo() {
             frame.delete();out_frame.delete();
             dst.delete(); rgbaPlanes.delete();
             the_color.delete();mask.delete();
+            contours.delete(); hierarchy.delete();  
             return;
         }
         let begin = Date.now();
@@ -165,10 +176,74 @@ function processVideo() {
 
         the_color = rgbaPlanes.get(cfg.get_color());
         cv.subtract(the_color, gray, dst, mask, dtype);
-        cv.threshold(dst, dst, Math.min(cfg.low_th,cfg.high_th), Math.max(cfg.low_th,cfg.high_th), cv.THRESH_BINARY);
+
+        // FILTERING
+        //cv.medianBlur(dst, dst, 11); //too slow
+        let ksize = new cv.Size(7, 7);
+        let anchor = new cv.Point(-1, -1);
+        cv.blur(dst, dst, ksize, anchor, cv.BORDER_DEFAULT);
+
+        //BINARIZATION
+        cv.threshold(dst,   dst, Math.min(cfg.low_th,cfg.high_th), Math.max(cfg.low_th,cfg.high_th), cv.THRESH_BINARY);
+        
+        cv.blur(dst, dst, ksize, anchor, cv.BORDER_DEFAULT);
+
+        //MORPHOLOGY (OPENING)
+        ksize = new cv.Size(7, 7);
+        let M = cv.getStructuringElement(2,ksize,anchor);//cv.Mat.ones(5, 5, cv.CV_8U);
+        // You can try more different parameters
+        cv.morphologyEx(dst, dst, cv.MORPH_OPEN, M, anchor, 1,
+                        cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
+        // MORPHOLOGY (CLOSE)
+        // You can try more different parameters
+        cv.morphologyEx(dst, dst, cv.MORPH_CLOSE, M);
+
+        // CIRCLES
+        let circles = new cv.Mat();
+        // let color = new cv.Scalar(255, 0, 0);
+        cv.HoughCircles(dst, circles, cv.HOUGH_GRADIENT,
+            cfg.circle_detector.dp, cfg.circle_detector.minDist, cfg.circle_detector.high_th,
+            cfg.circle_detector.accum_th, Math.min(cfg.circle_detector.minR, cfg.circle_detector.maxR),
+            Math.max(cfg.circle_detector.minR, cfg.circle_detector.maxR));
+
+
+        // CONTOURS
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        // You can try more different parameters
+        cv.findContours(dst, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+
         out_frame = dst;
         cv.cvtColor(out_frame,out_frame, cv.COLOR_GRAY2RGB);
+        
+        // Paint circles (see hough)
+        // console.log(circles.cols);
+        for (let i = 0; i < circles.cols; ++i) {
+            let x = circles.data32F[i * 3];
+            let y = circles.data32F[i * 3 + 1];
+            let radius = circles.data32F[i * 3 + 2];
+            let center = new cv.Point(x, y);
+            strikerr.px = x;
+            strikerr.py = y;
+            cv.circle(out_frame, center, radius, new cv.Scalar(0, 0, 255),15);
+        }
+
+        // draw contours with random Scalar
+        for (let i = 0; i < contours.size(); ++i) {
+            let cnt = contours.get(i);
+            let Moments = cv.moments(cnt, false);
+            let cx = Moments.m10/Moments.m00
+            let cy = Moments.m01/Moments.m00
+            let center = new cv.Point(cx, cy);
+            let radius = 30;
+            let color = new cv.Scalar(255,0,0);
+            cv.drawContours(out_frame, contours, i, color, 1, cv.LINE_8, hierarchy, 100);
+            cv.circle(out_frame, center, radius, color,15);
+        }
+        drawRectFromCenter(strikerr,out_frame);
+
         cv.flip(out_frame, out_frame, 1);// important that this is before object drawing
+
         drawField(out_frame,field);
         bounceFromRect(puck,strikerr,inside,field);
         bounceFromRect(puck,strikerl,inside,field);
@@ -178,7 +253,6 @@ function processVideo() {
         bounceFromField(puck,field);
         drawBall(puck,out_frame);
         drawRectFromCenter(strikerl,out_frame);
-        drawRectFromCenter(strikerr,out_frame);
         d3.select('#scorel').text(scores.left);
         d3.select('#scorer').text(scores.right);
 
@@ -333,7 +407,7 @@ function checkCircleRectCollision(disk,rect,tol=5){
     return [false,edge];
     }
 
-function velocify(obj,threshold=10,max=10){
+function velocify(obj,threshold=10,max=20){
     vel = 0;
     obj.vx = plusOrMinus()* getRandomArbitrary(5,max);
     obj.vy= plusOrMinus()* getRandomArbitrary(1,max);
@@ -410,7 +484,8 @@ function get_pixel(src){
 }
 
 function botsify(striker,ball,difficulty,counter){
-
+    //MAKE BOT ONLY LOOK FOR BALL IF IN HIS SIDE
+    //MAKE BOT RETURN TO CENTER WHEN BALL IN THE OTHER SIDE
     if (counter >= difficulty){
     let diff = ball.py - striker.py;
     if (diff > 0){
