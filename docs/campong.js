@@ -22,7 +22,6 @@ const argFact = (compareFn) => (array) => array.map((el, idx) => [el, idx]).redu
 const argMax = argFact((min, el) => (el[0] > min[0] ? el : min))
 const argMin = argFact((max, el) => (el[0] < max[0] ? el : max))
 
-var inside = false;
 class Striker{
     constructor(px,py,w,h,vx,vy){
         this.px = px;
@@ -91,133 +90,100 @@ function drawField(frame,obj){
     cv.rectangle(frame,obj.TL_RIGHT_GOAL,obj.BR_RIGHT_GOAL,obj.RIGHT_GOAL_COLOR,3);
 }
 
-// const videoSource = document.querySelector('select#videoSource');
-// const webcamElement = videoSource.value;//document.getElementById('webcam');
 const canvasElement = document.getElementById('canvas');
-// var webcam = new Webcam(webcamElement, 'user', canvasElement);
+var inside = false; // to know if the is inside the ball and has not bounced yet
 var streaming=true;
-// webcam.start()
-//   .then(result =>{
-//     console.log("webcam started");
-//     streaming = true;
-
-//   })
-//   .catch(err => {
-//     console.log(err);
-//     streaming = false;
-
-// });
-// //webcam.flip();
-
+var cfg={
+    low_th:30,
+    high_th:255,
+    color:'R',
+    get_color:function(){
+        if(this.color=='R'){
+            return 0;
+        }
+        else if(this.color=='G'){
+            return 1;
+        }
+        else if(this.color=='B')
+        {
+            return 2;
+        }
+    }
+};
 let video = document.getElementById('video');//document.getElementById('webcam');
 let cap = new cv.VideoCapture(video);
 
+let gui = new dat.GUI({ autoPlace: true, width: 450 });
+var cfgFolder = gui.addFolder('configuration');
+
+cfgFolder.add(cfg, 'low_th', 0, 255).name('low_th').step(1);
+cfgFolder.add(cfg, 'high_th', 0, 255).name('high_th').step(1);
+cfgFolder.add(cfg, 'color', ['R','G','B']);
+// add preview frame selector : gray, binary, color layer, identification, original, etc
 // take first frame of the video
 let frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);
 cap.read(frame);
 
-// hardcode the initial location of window
-let trackWindow = new cv.Rect(150, 60, 63, 125);
-let trackWindow2 = new cv.Rect(150, 60, 63, 125);
-// set up the ROI for tracking
-let roi = frame.roi(trackWindow);
-let hsvRoi = new cv.Mat();
-cv.cvtColor(roi, hsvRoi, cv.COLOR_RGBA2RGB);
-cv.cvtColor(hsvRoi, hsvRoi, cv.COLOR_RGB2HSV);
-let mask = new cv.Mat();
-let lowScalar = new cv.Scalar(30, 30, 0);
-let highScalar = new cv.Scalar(180, 180, 180);
-let low = new cv.Mat(hsvRoi.rows, hsvRoi.cols, hsvRoi.type(), lowScalar);
-let high = new cv.Mat(hsvRoi.rows, hsvRoi.cols, hsvRoi.type(), highScalar);
-cv.inRange(hsvRoi, low, high, mask);
-let roiHist = new cv.Mat();
-let hsvRoiVec = new cv.MatVector();
-hsvRoiVec.push_back(hsvRoi);
-cv.calcHist(hsvRoiVec, [0], mask, roiHist, [180], [0, 180]);
-cv.normalize(roiHist, roiHist, 0, 255, cv.NORM_MINMAX);
 
-// delete useless mats.
-roi.delete(); hsvRoi.delete(); mask.delete(); low.delete(); high.delete(); hsvRoiVec.delete();
-
-// Setup the termination criteria, either 10 iteration or move by atleast 1 pt
-let termCrit = new cv.TermCriteria(cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1);
-
-let hsv = new cv.Mat(video.height, video.width, cv.CV_8UC3);
-let single_color = new cv.Mat(video.height, video.width, cv.CV_8UC3); //investigar cv8uc3
-let hsvVec = new cv.MatVector();
-hsvVec.push_back(hsv);
-let dst = new cv.Mat();
-let trackBox = null;
+let gray = new cv.Mat(video.height, video.width, cv.CV_8UC3);
 var puck = new Disk(5,200,200,0,0);
-var field = new Field(640,480,5,5,5,100);
+var field = new Field(640,480,5,5,5,200);
 var scores = new Scores(0,0);
 var striker_margin = 5;
 velocify(puck);
 var striker_vel = 5;
-var strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/2),striker_vel,striker_vel);
-var strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/2),striker_vel,striker_vel);
+var strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
+var strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
 const FPS = 30;
+let rgbaPlanes = new cv.MatVector();
+let the_color = rgbaPlanes.get(0);
+let dst = new cv.Mat();
+let mask = new cv.Mat();
+let dtype = -1;
+let out_frame = dst;//frame,hsv;
+let bot_counter = 0;
+let bot_difficulty = 0; //lower is harder
+
 function processVideo() {
     try {
         if (!streaming) {
             // clean and stop.
-            frame.delete(); dst.delete(); hsvVec.delete(); roiHist.delete(); hsv.delete();
+            frame.delete();out_frame.delete();
+            dst.delete(); rgbaPlanes.delete();
+            the_color.delete();mask.delete();
             return;
         }
         let begin = Date.now();
 
         // start processing.
         cap.read(frame);
-        let rgbaPlanes = new cv.MatVector();
         // Split the Mat
         cv.split(frame, rgbaPlanes);
-        // Get R channel
-        cv.cvtColor(frame, hsv, cv.COLOR_RGBA2RGB);
-        cv.cvtColor(hsv, hsv, cv.COLOR_RGB2GRAY);
-        console.log(frame);
-        
-        let matVec = new cv.MatVector();
-        // Push a Mat back into MatVector
-        matVec.push_back(hsv);
-        let R = rgbaPlanes.get(0);
-        // let matVecR = new cv.MatVector();
-        // matVecR.push_back(R);
-        let dst = new cv.Mat();
-        let mask = new cv.Mat();
-        let dtype = -1;
-        cv.subtract(R, hsv, dst, mask, dtype);
-        
-        // cv.calcBackProject(hsvVec, [0], roiHist, dst, [0, 180], 1);
+        // Get the_color channel
+        cv.cvtColor(frame, gray, cv.COLOR_RGBA2RGB);
+        cv.cvtColor(gray, gray, cv.COLOR_RGB2GRAY);
 
-        // apply camshift to get the new location
-        // [trackBox, trackWindow] = cv.CamShift(dst, trackWindow, termCrit);
-        // [, trackWindow2] = cv.meanShift(dst, trackWindow2, termCrit);
-        // Draw it on image
-        // let [x, y, w, h] = [trackWindow2.x, trackWindow2.y, trackWindow2.width, trackWindow2.height];
-        // Draw it on image
-        // let pts = cv.rotatedRectPoints(trackBox);
-        let frame2 = dst;//frame,hsv;
-        cv.flip(frame2, frame2, 1);// important that this is before object drawing
-
-        drawField(frame2,field);
-        //cv.rectangle(frame2, new cv.Point(x, y), new cv.Point(x+w, y+h), [0, 255, 0, 255], 2);
-        // cv.line(frame2, pts[0], pts[1], [255, 0, 0, 255], 3);
-        // cv.line(frame2, pts[1], pts[2], [255, 0, 0, 255], 3);
-        // cv.line(frame2, pts[2], pts[3], [255, 0, 0, 255], 3);
-        // cv.line(frame2, pts[3], pts[0], [255, 0, 0, 255], 3);
-        bounceFromRect(puck,strikerr);
+        the_color = rgbaPlanes.get(cfg.get_color());
+        cv.subtract(the_color, gray, dst, mask, dtype);
+        cv.threshold(dst, dst, Math.min(cfg.low_th,cfg.high_th), Math.max(cfg.low_th,cfg.high_th), cv.THRESH_BINARY);
+        out_frame = dst;
+        cv.cvtColor(out_frame,out_frame, cv.COLOR_GRAY2RGB);
+        cv.flip(out_frame, out_frame, 1);// important that this is before object drawing
+        drawField(out_frame,field);
+        bounceFromRect(puck,strikerr,inside,field);
+        bounceFromRect(puck,strikerl,inside,field);
         moveObject(puck);
+        bot_counter=botsify(strikerl,puck,bot_difficulty,bot_counter);
         detectScore(scores,puck,field);// detecting scores must be before bouncing from walls
         bounceFromField(puck,field);
-        //bounceFromRect(puck,strikerl);
-        drawBall(puck,frame2);
-        drawRectFromCenter(strikerl,frame2);
-        drawRectFromCenter(strikerr,frame2);
+        drawBall(puck,out_frame);
+        drawRectFromCenter(strikerl,out_frame);
+        drawRectFromCenter(strikerr,out_frame);
         d3.select('#scorel').text(scores.left);
         d3.select('#scorer').text(scores.right);
 
-        //cv.imshow('canvasOut', frame2);
-        cv.imshow('canvasOut', frame2);
+        //cv.imshow('canvasOut', out_frame);
+        cv.imshow('canvasOut', out_frame);
         // schedule the next one.
         let delay = 1000/FPS - (Date.now() - begin);
         setTimeout(processVideo, delay);
@@ -265,38 +231,62 @@ function bounceFromField(obj,field){
     }
 }
 
-function bounceFromRect(disk,rect,inside){
+function bounceFromRect(disk,rect,inside,field){
 
     dir_x = get_sign(disk.px - rect.px);
     dir_y = get_sign(disk.py - rect.py);
     var collision,edge;
     [collision,edge] = checkCircleRectCollision(disk,rect);
-    //console.log(collision);
-    if (collision && !inside)
+
+    if (collision)
     {
-        inside = true;
+        if (rect.px > field.w/2){// right striker, go left
+            disk.vx = -1*Math.abs(disk.vx);
+        }
+        else {
+            disk.vx = Math.abs(disk.vx); //left striker, go right
+        }
         disk.color = [255,0,255,255];
-        console.log("collision");
-        if (edge==0){disk.vx = -1*dir_x*disk.vx;
-        disk.vy = -1*dir_y*disk.vy;}
-        else if (edge==1){
-            disk.vx = -1 * Math.abs(disk.vx);
+
+        if (rect.py != field.h/2){
+            disk.vy = disk.vy;
         }
-        else if (edge==2){
-            disk.vy = -1 * Math.abs(disk.vy);
-        }
-        else if (edge==3){
-            disk.vx = 1 * Math.abs(disk.vx);
-        }
-        else if (edge==4){
-            disk.vy = 1 * Math.abs(disk.vy);
-        }
-    }else {
-        if (collision==false){
-            inside = false;
-        }
+        // else { //ball down, go down
+        //     disk.vy = -1*Math.abs(disk.vy);
+        // }
+        disk.color = [255,0,255,255];
+
+    }
+    else{
         disk.color = [0,255,0,255];
     }
+
+    // console.log(collision);
+    // if (collision && !inside)
+    // {
+    //     inside = true;
+    //     disk.color = [255,0,255,255];
+    //     //console.log("collision");
+    //     if (edge==0){disk.vx = -1*dir_x*disk.vx;
+    //     disk.vy = -1*dir_y*disk.vy;}
+    //     else if (edge==1){//left
+    //         disk.vx = -1 * Math.abs(disk.vx);
+    //     }
+    //     else if (edge==2){//right
+    //         disk.vy = -1 * Math.abs(disk.vy);
+    //     }
+    //     else if (edge==3){//top
+    //         disk.vx = 1 * Math.abs(disk.vx);
+    //     }
+    //     else if (edge==4){//bottom
+    //         disk.vy = 1 * Math.abs(disk.vy);
+    //     }
+    // }else {
+    //     if (collision==false){
+    //         inside = false;
+    //     }
+    //     disk.color = [0,255,0,255];
+    // }
 }
 
 function checkCircleRectCollision(disk,rect,tol=5){
@@ -408,7 +398,7 @@ function get_shape(a){
     return [a.length,a[0].length];
 }
 
-function split_channels(src){
+function get_pixel(src){
     let row = src.matSize[0], col = src.matSize[1];
     if (src.isContinuous()) {
         let R = src.data[row * src.cols * src.channels() + col * src.channels()];
@@ -417,4 +407,23 @@ function split_channels(src){
         let A = src.data[row * src.cols * src.channels() + col * src.channels() + 3];
         return [R,G,B,A]
     }
+}
+
+function botsify(striker,ball,difficulty,counter){
+
+    if (counter >= difficulty){
+    let diff = ball.py - striker.py;
+    if (diff > 0){
+        move_striker(striker,0,1);
+    }
+    else{
+        move_striker(striker,0,-1);
+    }
+    counter = 0;
+    }
+    else{
+        counter += 1;
+    }
+    return counter
+    
 }
