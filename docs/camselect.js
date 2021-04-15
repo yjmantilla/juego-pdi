@@ -28,9 +28,11 @@ function gotDevices(deviceInfos) {
     if (deviceInfo.kind === 'videoinput') {
       option.text = deviceInfo.label || `camera ${videoSelect.length + 1}`;
       videoSelect.appendChild(option);
-    } else {
-      console.log('Some other kind of source/device: ', deviceInfo);
     }
+    // else {
+    //   //console.log('Some other kind of source/device: ', deviceInfo);
+    //   noe
+    // }
   }
   selectors.forEach((select, selectorIndex) => {
     if (Array.prototype.slice.call(select.childNodes).some(n => n.value === values[selectorIndex])) {

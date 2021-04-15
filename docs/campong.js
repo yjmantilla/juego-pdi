@@ -16,262 +16,278 @@
 //-----------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
 
-// const node = document;
-// node.addEventListener("keydown", function(event) {
-//     if (event.key === "ArrowLeft"||event.key === "a") {
-//         move_striker(strikerr,-1,0);
-
-//     }
-//     else if (event.key === "ArrowRight"||event.key === "d") {
-//         move_striker(strikerr,1,0);
-//     }
-//     else if (event.key === "ArrowUp"||event.key === "w") {
-//         move_striker(strikerr,0,-1);
-
-//     }
-//     else if (event.key === "ArrowDown"||event.key === "s") {
-//         move_striker(strikerr,0,1);
-
-//     }
-
-// });
 
 
-const canvasElement = document.getElementById('canvas');
-var streaming=true;
-var cfg={
-    low_th:30,
-    high_th:255,
-    color:'R',
-    frame:'raw',
-    segmentation:'none',
-    get_color:function(){
+//-----------------------------------------------------------------------------------------------
+//-------Configuración de Elementos HTML---------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+const canvasElement = document.getElementById('canvas');    // Obtenemos el elmento html 'canvas' donde se pintara todo
+document.getElementById("video").style.display="none";      // Ocultar video original de la webcam, solo queremos que se muestre el canvas
+const video = document.getElementById('video');             // Obtenemos el elemento html donde esta el video
+
+//-----------------------------------------------------------------------------------------------
+//-------Inicialización de lo Parámeros Configurables por el Usuario-----------------------------
+//-----------------------------------------------------------------------------------------------
+let game = {thr:15,max_vel:30};                             // Diccionario que configura propiedades del jueg
+                                                            // Este diccionario define las propiedades y su valor inicial
+                                                            // thr define la mínima velocidad en una sola componente (x o y)
+                                                            // max_vel define la máxima norma (sqrt(x*x+*y)) que puede tener la velocidad
+
+let cfg={                                                   // Diccionario que define propiedades del procesamiento de imágenes
+                                                            // Este diccionario define las propiedades y su valor inicial
+    low_th:30,                                              // Umbral para el mínimo de intensidad en el proceso de binarización
+    high_th:255,                                            // Umbral para el máximo de intensidad en el proceso de binarización
+    color:'R',                                              // Color del objeto a detectar, debe ser 'R','G' o 'B'
+    frame:'raw',                                            // Que imagen mostrar como fondo del juego
+                                                            // Puede ser: 
+                                                            // 'raw':cruda,
+                                                            // 'blur':luego de transformacion rhb y difuminacion,
+                                                            // 'the_color':capa del color elegida,
+                                                            // 'grey':escala de grises,
+                                                            // 'subtract':resta de la capa de color escogida - escala de grises,
+                                                            // 'binary':binarizada por los umbrales,
+                                                            // 'morph': luego de una difuminación y las transformaciones de morfologia
+    segmentation: 'true',                                   // Indica si se hace el proceso de segmentación y reconocimiento o no
+                                                            // Ya que se le da la opción al usuario de utilizar el teclado para mover su paleta
+    blur_ksize:8,                                           // Tamaño del elemento estructurante para el blur
+    morph_ksize:3,                                          // Tamaño del elemento estructurante para la morfología
+    get_color:function(){                                   // Función que mapea colores a indices de un arreglo de color
         if(this.color=='R'){
-            return 0;
+            return 0;                                       // R:0
         }
         else if(this.color=='G'){
-            return 1;
+            return 1;                                       // G:1
         }
         else if(this.color=='B')
         {
-            return 2;
+            return 2;                                       // B:2
         }
-    },
-    circle_detector:{dp:1,minDist:45,high_th:75,accum_th:40,minR:1,maxR:640}
+    }
 };
-let video = document.getElementById('video');//document.getElementById('webcam');
-let cap = new cv.VideoCapture(video);
 
-let gui = new dat.GUI({ autoPlace: true, width: 450 });
-var cfgFolder = gui.addFolder('configuration');
-var circleFolder = gui.addFolder('circle detector');
-cfgFolder.add(cfg, 'low_th', 0, 255).name('low_th').step(1);
-cfgFolder.add(cfg, 'high_th', 0, 255).name('high_th').step(1);
-cfgFolder.add(cfg, 'color', ['R','G','B']);
-cfgFolder.add(cfg, 'frame', ['raw','lab','grey','subtract','binary','morph']);
-cfgFolder.add(cfg, 'segmentation', ['none','hough','contours']);
+//-----------------------------------------------------------------------------------------------
+//-------Configuración de la Interfaz de Parámetros del Juego------------------------------------
+//-----------------------------------------------------------------------------------------------
+let gui = new dat.GUI({ autoPlace: true, width: 450 });                         // Instancia de dat.GUI para generar un panel de configuracion para el juego
+let gameFolder = gui.addFolder('Game');                                         // Carpeta de configuración de propiedades del juego
+gameFolder.add(game, 'max_vel', 20, 50).name('max_vel').step(1);                // Configuración de la velocidad máxima
+gameFolder.add(game, 'thr', 10, 20).name('thr').step(1);                        // Configuración de la mínima velocidad en una sola componente de la velocidad
 
-circleFolder.add(cfg.circle_detector,'dp',1,2).name('dp').step(1);
-circleFolder.add(cfg.circle_detector,'minDist',1,640).name('minDist').step(1);
-circleFolder.add(cfg.circle_detector,'high_th',1,100).name('high_th').step(1);
-circleFolder.add(cfg.circle_detector,'accum_th',1,100).name('accum_th').step(1);
-circleFolder.add(cfg.circle_detector,'minR',1,640).name('minR').step(1);
-circleFolder.add(cfg.circle_detector,'maxR',1,640).name('maxR').step(1);
-
-// add preview frame selector : gray, binary, color layer, identification, original, etc
-// take first frame of the video
-let frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);
-let lab = new cv.Mat(video.height, video.width, cv.CV_8UC4);
-cap.read(frame);
+let cfgFolder = gui.addFolder('Processing');                                                 // Carpeta de configuracion de propiedades del procesado de imágenes
+cfgFolder.add(cfg, 'low_th', 0, 255).name('low_th').step(1);                                 // Configuración del Umbral para el mínimo de intensidad en el proceso de binarización
+cfgFolder.add(cfg, 'high_th', 0, 255).name('high_th').step(1);                               // Configuración del Umbral para el máximo de intensidad en el proceso de binarización
+cfgFolder.add(cfg, 'color', ['R','G','B']);                                                  // Configuración del color del objeto a detectar
+cfgFolder.add(cfg, 'frame', ['raw','blur','the_color','grey','subtract','binary','morph']);  // Configuración de la imagen mostrar como fondo del juego
+cfgFolder.add(cfg, 'blur_ksize', 2, 100).name('blur_ksize').step(1);                         // Configuracion del tamaño del elemento estructurante del blur
+cfgFolder.add(cfg, 'morph_ksize', 2, 10).name('morph_ksize').step(1);                        // Configuracion del tamaño del elemento estructurante del para la morfología
+cfgFolder.add(cfg, 'segmentation',['true','false']);                                         // Configurar si hacer el proceso de segmentación y reconocimiento o no
 
 
-let gray = new cv.Mat(video.height, video.width, cv.CV_8UC3);
-var puck = new Disk(5,200,200,0,0);
-var field = new Field(640,480,5,5,5,200);
-var scores = new Scores(0,0);
-var striker_margin = 5;
-velocify(puck);
-var striker_vel = 5;
-var strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
-var strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
-//var strikerr = new Striker(field.LEFT_GOAL_R + striker_margin,field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),striker_vel,striker_vel);
+//-----------------------------------------------------------------------------------------------
+//-------Instanciación de elementos del Juego----------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+let puck = new Disk(5,200,200,0,0);                                 // Instancia de la pelota
+let field = new Field(640,480,5,5,5,200);                           // Instancia del campo
+let scores = new Scores(0,0);                                       // Instancia de los marcadores
+let striker_margin = 0;                                             // Margen de las raquetas respecto a los bordes del campo
+let striker_vel = 5;                                                // Velocidad de las raquetas
+let strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,      // Instanciación de la raqueta izquierda
+    field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),
+    striker_vel,striker_vel);
+let strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,      // Instaciación de la raqueta derecha
+    field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),
+    striker_vel,striker_vel);
+velocify(puck,game.thr,game.max_vel);
 
-const FPS = 30;
-let rgbaPlanes = new cv.MatVector();
-let labPlanes = new cv.MatVector();
-let the_color = rgbaPlanes.get(0);
-let bin = new cv.Mat(video.height, video.width, cv.CV_8UC3);
-let morph = new cv.Mat(video.height, video.width, cv.CV_8UC3);
+//-----------------------------------------------------------------------------------------------
+//-------Inicialización de Variables de OPENCV---------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+const FPS = 30;                                                         // Frames por segundo a usar
+let cap = new cv.VideoCapture(video);                                   // Instancia de la clase de captura de video de opencv
+let streaming = true;                                                   // Booleano que indica si la camara esta transmitiendo video
+let frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);          // Reserva de una matriz frame que es la captura de la imagen de un video en un tiempo especifico RGBA: 4 canales de unsigned integer 8
+let dummyFrame = new cv.Mat();                                          // Reserva de la matriz auxiliar que irá guardando la imagen actual en cada momento
+let rgbPlanes = new cv.MatVector();                                     // Reserva de un vector que guardara las capas de color de la imagen RGB por separado
+let the_color = new cv.Mat();                                           // Reserva de una matriz que guardara unicamente la capa de color indicada por el usuario
+let out_frame = new cv.Mat();                                           // Reserva de una matriz que almacenará el fondo del campo proyectado en el juego
+let contours = new cv.MatVector();                                      // Vector de Matrices que contendrá contornos
+let hierarchy = new cv.Mat();                                           // Matriz que guardará las jerarquías de esos contornos
 
-let dst = new cv.Mat();
-let mask = new cv.Mat();
-let l = new cv.Mat();
-let a = new cv.Mat();
-let b = new cv.Mat();
+//-----------------------------------------------------------------------------------------------
+//-------Procesamiento de la imagen y su influencia en el juego----------------------------------
+//-----------------------------------------------------------------------------------------------
 
-let dtype = -1;
-let out_frame = dst;//frame,hsv;
+function processVideo() {                               // Función que realiza todo el procesamiento
+    try 
+    {
 
-function processVideo() {
-    try {
-        if (!streaming) {
-            // clean and stop.
-            frame.delete();out_frame.delete();
-            dst.delete(); rgbaPlanes.delete();
-            the_color.delete();mask.delete();
-            contours.delete(); hierarchy.delete();  
-            bin.delete();morph.delete();
+//-------Inicialización, Reserva y Eliminación de Variables--------------------------------------
+
+        if (!streaming) {                               // Si ya no se esta capturando video
+            frame.delete();out_frame.delete();          // Borrar variables Inutilizadas
+            rgbPlanes.delete();                         // Borrar variables Inutilizadas
+            the_color.delete();                         // Borrar variables Inutilizadas
+            dummyFrame.delete();                        // Borrar variables Inutilizadas
+            contours.delete(); hierarchy.delete();      // Borrar variables Inutilizadas
             return;
         }
-        let begin = Date.now();
 
-        // start processing.
-        cap.read(frame);
+        let tileGridSize = new cv.Size(cfg.blur_ksize, cfg.blur_ksize);         // Tamaño del elemento estructurante para los blur
 
-        cv.cvtColor(frame, lab, cv.COLOR_RGB2Lab);
-        cv.split(lab,labPlanes)
-        let tileGridSize = new cv.Size(8, 8);
-        let clahe = new cv.CLAHE(40, tileGridSize);
-        clahe.apply(labPlanes.get(0), labPlanes.get(0));
-        cv.merge(labPlanes, lab);
-        cv.cvtColor(lab, lab, cv.COLOR_Lab2RGB);
+//-------Obtención de la Imagen Cruda------------------------------------------------------------
 
-        // Split the Mat
-        cv.split(lab, rgbaPlanes);
-        // Get the_color channel
-
-        //cv.cvtColor(frame, gray, cv.COLOR_RGBA2RGB);
-        cv.cvtColor(lab, gray, cv.COLOR_RGB2GRAY);//gray
-
-        the_color = rgbaPlanes.get(cfg.get_color());
-        cv.subtract(the_color, gray, dst, mask, dtype);
-
-        // FILTERING
-        //cv.medianBlur(dst, dst, 11); //too slow
-        let ksize = new cv.Size(7, 7);
-        let anchor = new cv.Point(-1, -1);
-        cv.blur(dst, dst, ksize, anchor, cv.BORDER_DEFAULT);
-
-        //BINARIZATION
-        cv.threshold(dst,   bin, Math.min(cfg.low_th,cfg.high_th), Math.max(cfg.low_th,cfg.high_th), cv.THRESH_BINARY);
-        
-        cv.blur(bin, dst, ksize, anchor, cv.BORDER_DEFAULT);
-
-        //MORPHOLOGY (OPENING)
-        ksize = new cv.Size(3,3);
-        let M = cv.getStructuringElement(2,ksize,anchor);//cv.Mat.ones(5, 5, cv.CV_8U);
-        // You can try more different parameters
-        cv.morphologyEx(dst, morph, cv.MORPH_OPEN, M, anchor, 1,
-                        cv.BORDER_CONSTANT, cv.morphologyDefaultBorderValue());
-        // MORPHOLOGY (CLOSE)
-        // You can try more different parameters
-        cv.morphologyEx(morph, morph, cv.MORPH_CLOSE, M);
-        if (cfg.frame=='raw'){
+        cap.read(frame);                                        // Lectura del frame de la camara
+        if (cfg.frame=='raw'){                                  // Seleccionar imagen cruda como fondo
             out_frame=frame;
-        }else if(cfg.frame=='lab'){
-            out_frame==lab;
         }
-        else if (cfg.frame=='grey'){
-            out_frame = gray;
-        }else if (cfg.frame=='subtract'){
-            out_frame = the_color;
-        }else if (cfg.frame=='binary'){
-            out_frame = bin;
-        }else if (cfg.frame=='morph'){
-            out_frame = morph;
-        }
-
-
-        let circles = new cv.Mat();
-        if (cfg.segmentation == 'hough'){
-        // CIRCLES
-        // let color = new cv.Scalar(255, 0, 0);
-        cv.HoughCircles(morph, circles, cv.HOUGH_GRADIENT,
-            cfg.circle_detector.dp, cfg.circle_detector.minDist, cfg.circle_detector.high_th,
-            cfg.circle_detector.accum_th, Math.min(cfg.circle_detector.minR, cfg.circle_detector.maxR),
-            Math.max(cfg.circle_detector.minR, cfg.circle_detector.maxR));
-        }
-        let contours = new cv.MatVector();
-        let hierarchy = new cv.Mat();
         
-        if (cfg.frame != 'morph'){
-        cv.flip(out_frame, out_frame, 1);// important that this is before object drawing
+//-------Conversion de RGBA a RGB----------------------------------------------------------------
+
+        cv.cvtColor(frame, dummyFrame, cv.COLOR_RGBA2RGB);      // Conversión de RHBA a RGB
+
+
+//-------Difuminación para eliminar ruido--------------------------------------------------------
+
+        cv.blur(dummyFrame, dummyFrame, tileGridSize);          // Difuminación
+        if(cfg.frame=='blur'){                                  // Verificar si el usuario marcó "blur" como fondo
+            out_frame=dummyFrame.clone();                               // En tal caso, Seleccionar como imagen de fondo la difuminación
         }
-        cv.flip(morph, morph, 1);// important that this is before object drawing
 
-        if (cfg.segmentation=='contours'){
-        // CONTOURS
-        // You can try more different parameters
-        cv.findContours(morph, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);
+//-------Búsqueda del objeto mediante uno de los canales RGB-------------------------------------
+
+        cv.split(dummyFrame, rgbPlanes);                        // Separar la imagen RGB en los 3 canales
+
+        cv.cvtColor(dummyFrame, dummyFrame, cv.COLOR_RGB2GRAY); // Conversión de RGB a Escala de Grises
+        if (cfg.frame=='grey'){                                 // Verificar si el usuario marcó "gray" para el fondo
+            out_frame = dummyFrame.clone();                             // En tal caso, seleccionar como fondo la escala de grises
         }
 
-        //out_frame = lab;
-        if (cfg.frame!='raw'){
-        cv.cvtColor(out_frame,out_frame, cv.COLOR_GRAY2RGB);
-    }
-
-
-        if (cfg.segmentation=='hough'){
-        // Paint circles (see hough)
-        // console.log(circles.cols);
-        for (let i = 0; i < circles.cols; ++i) {
-            let x = circles.data32F[i * 3];
-            let y = circles.data32F[i * 3 + 1];
-            let radius = circles.data32F[i * 3 + 2];
-            let center = new cv.Point(x, y);
-            cv.circle(out_frame, center, radius, new cv.Scalar(0, 0, 255),15);
+        the_color = rgbPlanes.get(cfg.get_color());             // Obtener la capa marcada por el usuario en las opciones
+        if (cfg.frame=='the_color'){                            // Verificar si el usuario marcó "the_color" para el fondo
+            out_frame = the_color;                              // En tal caso, seleccionar como fondo la capa de color
         }
-    }
 
-        if (cfg.segmentation=='contours'){
-        // draw contours with random Scalar
-        let max_contour = 0;
-        let selected = 0; 
-        for (let i = 0; i < contours.size(); ++i) {
-            let cnt = contours.get(i);
-                let Moments = cv.moments(cnt, false);
-            let cx = Moments.m10/Moments.m00
-            let cy = Moments.m01/Moments.m00
-            if (max_contour < contours.get(i).rows){
-                max_contour = contours.get(i).rows;
-                strikerr.px = cx;
-                strikerr.py = cy;
-                selected = i;
-            }
+        //cv.equalizeHist(the_color,the_color);                 // Ecualización del histograma de la capa de color seleccionada, no dió resulados relevantes...
+        cv.subtract(the_color, dummyFrame, dummyFrame);         // Comparamos la capa de color seleccionado contra la escala de grises.
+        if (cfg.frame=='subtract'){                             // Verificar si el usuario marcó "subtract" para el fondo
+            out_frame = dummyFrame.clone();                             // En tal caso, seleccionar como fondo la resta calculada
+        }
+
+//-------Binarización según lo encontrado previamente--------------------------------------------
+
+        cv.threshold(dummyFrame,dummyFrame, Math.min(cfg.low_th,cfg.high_th), Math.max(cfg.low_th,cfg.high_th), cv.THRESH_BINARY);      // Umbralización de la resta hecha
+        if (cfg.frame=='binary'){                                                                                                       // Verificar si el usuario marcó "Binario" para el fondo
+            out_frame = dummyFrame.clone();                                                                                                     // En tal caso, seleccionar como fondo la umbralización
+        }
+
+//-------Otra Difuminación para eliminar más ruido-----------------------------------------------
+
+        cv.blur(dummyFrame, dummyFrame, tileGridSize);                                                                                  // 2da difuminación
+
+//-------Procesamiento Morfológico para mejorar las figuras--------------------------------------
+
+        let ksize = new cv.Size(cfg.morph_ksize,cfg.morph_ksize);                                                                       // Definición del tamaño del elemento estructurante para la morfología
+        let M = cv.getStructuringElement(2,ksize);                                                                                      // En tal caso, seleccionar como fondo la resta calculada
+        cv.morphologyEx(dummyFrame, dummyFrame, cv.MORPH_OPEN, M);                                                                      // Operación de Abrir para reducir ruido
+
+        cv.morphologyEx(dummyFrame,dummyFrame, cv.MORPH_CLOSE, M);                                                                      // Operación de Cerrar para cerrar huecos.
+
+        if (cfg.frame=='morph'){                                                                                                        // Verificar si el usuario marcó "morph" para el fondo
+            out_frame = dummyFrame.clone();                                                                                                     // En tal caso, seleccionar como fondo la imagen resultante de la morfología
+        }
+
+//-------Correciones de la orientación horizonal de la imagen------------------------------------
+
+        cv.flip(out_frame, out_frame, 1);                                                                                               // Giro en espejo del fondo, esto es para que concuerde de forma intuitiva la imagen mostrada con la posición del usuario
+        cv.flip(dummyFrame, dummyFrame, 1);                                                                                             // La necesidad de invertir en este caso se infiere empiricamente. (Sabía la razón exacta en algún momento pero no la escribí...)
+
+
+//-------Segmentación de la Imagen---------------------------------------------------------------
+
+        if (cfg.segmentation=='true'){                                                                                                  // Si el proceso de Segmentación esta activo
+
+//-------Encontrar el contorno más grande con el color de nuestro marcador-----------------------
+
+            cv.findContours(dummyFrame, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);                                    // Encontramos los contornos de la imagen ya procesada por todos los pasos anteriores
+                                                                                                                                        // Buscamos ahora el contorno más grande, que será en principio nuestro objeto que se desea identificar
+            let max_contour = 0;                                                                                                        // Variable donde guardaremos el maximo contorno que hemos encontrado
+            let selected = 0;                                                                                                           // Aquí guardaremos el índice del máximo contorno hallado
             
+            for (let i = 0; i < contours.size(); ++i) {                                                                                 // Recorremos los contornos para saber cual es el mayor
+                if (max_contour < contours.get(i).rows)                                                                                 // Si el contorno actual es mayor a nuestro mayor contorno encontrado hasta ahorita...
+                    {
+                    let cnt = contours.get(i);                                                                                          // Obtenemos el contorno actual
+                    let Moments = cv.moments(cnt, false);                                                                               // Calculamos los momentos de ese contorno
+                    let cx = Moments.m10/Moments.m00                                                                                    // Inferimos centroide.x con los momentos
+                    let cy = Moments.m01/Moments.m00                                                                                    // Inferimos centroide.y con los momentos
+                    max_contour = contours.get(i).rows;                                                                                 // Reemplazamos nuestro contorno más grande encontrado
+                    strikerr.px = cx;                                                                                                   // Colocamos la raqueta.x en el centroide.x
+                    strikerr.py = cy;                                                                                                   // Colocamos la raqueta.y en el centroide.y
+                    selected = i;                                                                                                       // Guardamos el contorno escogido en la variable selected
+                    }
+                
+                }
+            let color = new cv.Scalar(255,0,0);                                                                                         // Usaremos blanco para pintar el contorno
+            cv.drawContours(out_frame, contours, selected, color, 1, cv.LINE_8, hierarchy, 100);                                        // Pintamos el contorno
+
         }
-        let center = new cv.Point(strikerr.px, strikerr.py);
-        let radius = 30;//cfg.circle_detector.minR;
-        let color = new cv.Scalar(255,0,0);
-
-        cv.drawContours(out_frame, contours, selected, color, 1, cv.LINE_8, hierarchy, 100);
-        cv.circle(out_frame, center, radius, color,15);
-
-    }
 
 
-        drawField(out_frame,field);
-        bounceFromRect(puck,strikerl,field);
-        bounceFromRect(puck,strikerr,field);
-        moveObject(puck);
-        botsify(strikerl,puck,field);
-        detectScore(scores,puck,field);// detecting scores must be before bouncing from walls
-        bounceFromField(puck,field);
-        drawBall(puck,out_frame);
-        drawRectFromCenter(strikerl,out_frame);
-        drawRectFromCenter(strikerr,out_frame);
-        d3.select('#scorel').text(scores.left);
-        d3.select('#scorer').text(scores.right);
 
-        //cv.imshow('canvasOut', out_frame);
-        cv.imshow('canvasOut', out_frame);
-        // schedule the next one.
-        let delay = 1000/FPS - (Date.now() - begin);
-        setTimeout(processVideo, delay);
-    } catch (err) {
-        console.log(err);
+//-------Correciones de color para mostrar el fondo----------------------------------------------
+
+if (cfg.frame!='raw'&& cfg.frame!='blur'){                  // En caso de que el fondo escogido aún no este en el espacio RGB, toca convertirlo
+    cv.cvtColor(out_frame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+}
+
+//----Ya identificada la posición de la raqueta del usuario, seguimos con la logica del juego----
+
+        drawField(out_frame,field);                                 // Pintar el campo
+        bounceFromRect(puck,strikerl,field);                        // Rebotar la pelota de la raqueta del computador
+        bounceFromRect(puck,strikerr,field);                        // Rebotar la pelota de la raqueta del usuario
+        moveObject(puck);                                           // Mover la pelota
+        botsify(strikerl,puck,field);                               // Mover el bot
+        detectScore(scores,puck,field,game.thr,game.max_vel);       // Detectar Goles, debe hacer antes de rebotar con las paredes ya que si no solo rebotaria
+        bounceFromField(puck,field);                                // Rebotar de las paredes
+        drawBall(puck,out_frame);                                   // Pintar la pelota
+        drawRectFromCenter(strikerl,out_frame);                     // Pintar raqueta del bot
+        drawRectFromCenter(strikerr,out_frame);                     // Pintar raqueta del jugador
+        d3.select('#scorel').text(scores.left);                     // Mostrar marcador del bot
+        d3.select('#scorer').text(scores.right);                    // Mostrar marcador del jugador
+
+
+
+
+//-------Visualización y llamada al siguiente frame----------------------------------------------
+
+        cv.imshow('canvasOut', out_frame);                          // Mostrar la imagen pintada en el canvas del html
+
+
+        requestAnimationFrame(processVideo);                        // Pasa a procesar el siguiente frame cuando el browser este listo
+
+    } 
+    catch (err) {                                                   // Esto es un mecanismo de control de errores
+        console.log(err);                                           // Imprimir el error en consola
+        //requestAnimationFrame(processVideo);                      // Si quisieramos seguir intentando descomentariamos esto, pero es más seguro parar
     }
 };
 
-// schedule the first one.
-setTimeout(processVideo, 0);
+document.addEventListener("keydown", function(event) {              // Función que se encargar de estar atenta a las teclas AWSD y Up Down Left Right para mover de otra forma la raqueta del usuario
+    if (event.key === "ArrowLeft"||event.key === "a") {             // Si Left o A
+        move_striker(strikerr,-1,0);                                // Movemos hacia la izquierda...
+
+    }
+    else if (event.key === "ArrowRight"||event.key === "d") {       // Si Right o D
+        move_striker(strikerr,1,0);                                 // Movemos hacia la derecha...
+    }
+    else if (event.key === "ArrowUp"||event.key === "w") {          // Si Up o W
+        move_striker(strikerr,0,-1);                                // Movemos hacia arriba...
+
+    }
+    else if (event.key === "ArrowDown"||event.key === "s") {        // Si Down o S
+        move_striker(strikerr,0,1);                                 // Movemos hacia abajo
+
+    }
+});
+
+requestAnimationFrame(processVideo);                                // Esta es realmente la línea que inicia todo al llamar a proceesVideo, sin ella no se hiciera nada

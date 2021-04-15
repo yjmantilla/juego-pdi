@@ -99,18 +99,18 @@ function drawRectFromCenter(obj,frame){                                         
 //-----------------------------------------------------------------------------------------------
 //-------Lógica de Goles-------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
-function detectScore(scores,ball,field){                                    // Función que detecta que se ha tocado la línea de gol de algunas de las áreas de gol del campo
+function detectScore(scores,ball,field,thr,max_vel){                            // Función que detecta que se ha tocado la línea de gol de algunas de las áreas de gol del campo
     if (field.TOP_GOAL <= ball.py && ball.py <= field.BOTTOM_GOAL)          // Verificamos si la pelota está frente a cualquiera de las áreas de gol
     {
         if (ball.px - ball.radius <= field.LEFT_GOAL_L + field.goal_w/2){   // Verificamos si la pelota sobrepasó el área de gol izquierda
             scores.right +=1;                                               // Concedemos punto al jugador derecho
             center(ball,field.w,field.h);                                   // Centramos la pelota para el saque
-            velocify(ball);                                                 // Damos una velocidad aleatoria a la pelota
+            velocify(ball,thr,max_vel);                                     // Damos una velocidad aleatoria a la pelota
         }
         if (ball.px + ball.radius >= field.RIGHT_GOAL_R - field.goal_w/2){  // Verificamos si la pelota sobrepasó el área de gol derecha
             scores.left +=1;                                                // Concedemos punto al jugador izquierdo
             center(ball,field.w,field.h);                                   // Centramos la pelota para el saque
-            velocify(ball);                                                 // Damos una velocidad aleatoria a la pelota
+            velocify(ball,thr,max_vel);                                     // Damos una velocidad aleatoria a la pelota
         }
     }
 }
