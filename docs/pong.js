@@ -13,9 +13,8 @@
 //-----------------------------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------------------------
+//-------Definicion de Clases--------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
-//-----------------------------------------------------------------------------------------------
-
 class Striker{                         // Clase que modela la "raqueta" de los jugadores
     constructor(px,py,w,h,vx,vy){      // Constructor de la clase
         this.px = px;                  // Posición Horizontal
@@ -76,6 +75,9 @@ class Field {                                                                // 
     }
 }
 
+//-----------------------------------------------------------------------------------------------
+//-------Visualización de Objetos----------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
 
 function drawField(frame,obj){                                                          // Función que pinta el campo en un frame
     cv.rectangle(frame,obj.TOP_LEFT,obj.BOTTOM_RIGHT,obj.FIELD_COLOR,2);                // Pintar Bordes del Campo
@@ -88,20 +90,66 @@ function drawBall(ball,frame){                                                  
     cv.circle(frame,new cv.Point(ball.px,ball.py),ball.radius,ball.color,ball.radius);  // Pintar el disco/pelota mediante opencv
 }
 
-function move_striker(striker,signx,signy){         // Funcion que mueve una raqueta dado el sentido de movimiento introducido (signx y signy)
-    striker.py = striker.py + signy*striker.vy;     // Cambiamos la posición vertical de la raqueta dada su velocidad vertical
-    striker.px = striker.px + signx*striker.vx;     // Cambiamos la posición horizontal de la raqueta dada su velocidad horizontal
-}
 function drawRectFromCenter(obj,frame){                                                             // Función que pinta un rectangulo a partir de las coordenadas de su centro, su ancho (w) y su altura (h)
     let top_left = new cv.Point(obj.px-Math.floor(obj.w/2),obj.py-Math.floor(obj.h/2));             // Definimos Punto Superior Izquierdo
     let bottom_right = new cv.Point(obj.px+Math.floor(obj.w/2),obj.py+Math.floor(obj.h/2));         // Definimos Punto Inferior Derecho
     cv.rectangle(frame,top_left,bottom_right,obj.color,3);                                          // Pintamos el rectangulo a partir de ambos puntos
+}
+
+//-----------------------------------------------------------------------------------------------
+//-------Lógica de Goles-------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+function detectScore(scores,ball,field){                                    // Función que detecta que se ha tocado la línea de gol de algunas de las áreas de gol del campo
+    if (field.TOP_GOAL <= ball.py && ball.py <= field.BOTTOM_GOAL)          // Verificamos si la pelota está frente a cualquiera de las áreas de gol
+    {
+        if (ball.px - ball.radius <= field.LEFT_GOAL_L + field.goal_w/2){   // Verificamos si la pelota sobrepasó el área de gol izquierda
+            scores.right +=1;                                               // Concedemos punto al jugador derecho
+            center(ball,field.w,field.h);                                   // Centramos la pelota para el saque
+            velocify(ball);                                                 // Damos una velocidad aleatoria a la pelota
+        }
+        if (ball.px + ball.radius >= field.RIGHT_GOAL_R - field.goal_w/2){  // Verificamos si la pelota sobrepasó el área de gol derecha
+            scores.left +=1;                                                // Concedemos punto al jugador izquierdo
+            center(ball,field.w,field.h);                                   // Centramos la pelota para el saque
+            velocify(ball);                                                 // Damos una velocidad aleatoria a la pelota
+        }
+    }
+}
+
+
+//-----------------------------------------------------------------------------------------------
+//-------Lógica de Movimiento y Posicionamiento--------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+function move_striker(striker,signx,signy){         // Funcion que mueve una raqueta dado el sentido de movimiento introducido (signx y signy)
+    striker.py = striker.py + signy*striker.vy;     // Cambiamos la posición vertical de la raqueta dada su velocidad vertical
+    striker.px = striker.px + signx*striker.vx;     // Cambiamos la posición horizontal de la raqueta dada su velocidad horizontal
 }
 function moveObject(obj){      // Función que mueve un objeto cualquier con posiciones y velocidades dadas en sus atributos
     obj.px = obj.px + obj.vx;  // Movemos el objeto en x 
     obj.py = obj.py + obj.vy;  // Movemos el objeto en y
 }
 
+function center(obj,w,h){      // Función que centra un objeto cualquiera dado un ancho (w) y una altura (h) completas del campo
+    obj.px = Math.floor(w/2);  // Centramos en el eje horizontal
+    obj.py = Math.floor(h/2);  // Centramos en el eje vertical
+}
+
+function velocify(obj,threshold=10,max=20){                 // Función que da una velocidad aleatoria que cumpla un resultante mínima dada por threshold y una velocidad máxima por componente dada por max
+    obj.vx = plusOrMinus()* getRandomArbitrary(5,max);      // Damos una velocidad aleatoria en x
+    obj.vy= plusOrMinus()* getRandomArbitrary(1,max);       // Damos una velocidad aleatoria en y
+    vel = Math.sqrt(obj.vx*obj.vx+obj.vy*obj.vy);           // Calculamos la norma resultante de la velocidad
+    if (vel<threshold){                                     // Verificamos si la velocidad es más pequeña que el umbral dado
+        if (obj.vx <= obj.vy){                              // Si lo es vemos si la componente más pequeña es la x
+            obj.vx = threshold*get_sign(obj.vx);            // Si la componente más pequeña es x, damos la máxima velocidad ahí
+        }
+        else {
+            obj.vy = threshold*get_sign(obj.vy);            // Si la componente más pequeña es y, damos la máxima velocidad ahí
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------------------------
+//-------Lógica de Colisiones--------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
 function bounceFromField(obj,field){        // Funcion que rebota un disco/pelota al chocar con los bordes de un campo
     if (obj.py-obj.radius <= field.TOP){    // Choque con el borde superior
         obj.vy = Math.abs(obj.vy);          // Colocamos la velocidad "y" hacia abajo (positiva)
@@ -117,183 +165,109 @@ function bounceFromField(obj,field){        // Funcion que rebota un disco/pelot
     }
 }
 
-function bounceFromRect(disk,rect,inside,field){                
-    dir_x = get_sign(disk.px - rect.px);
-    dir_y = get_sign(disk.py - rect.py);
-    var collision,edge;
-    [collision,edge] = checkCircleRectCollision(disk,rect);
-
-    if (collision)
+function bounceFromRect(disk,rect,field){                // Funcion que rebota una pelota/disco al chocar con un rectangulo dado
+    var collision;                                              // Variable para guardar si hubo colisión o no
+    collision = checkCircleRectCollision(disk,rect);            // Determinamos si hubo colisión
+    if (collision)                                              // En caso de colisión...
     {
-        if (rect.px > field.w/2){// right striker, go left
-            disk.vx = -1*Math.abs(disk.vx);
+        if (rect.px > field.w/2){                               // Vemos si el choque fue con la raqueta derecha
+            disk.vx = -1*Math.abs(disk.vx);                     // Si es así, rebotamos hacia la izquierda (velocidad negativa)
         }
-        else {
-            disk.vx = Math.abs(disk.vx); //left striker, go right
+        else {                                                  // De lo contrario el choque fue con la raqueta izquierda
+            disk.vx = Math.abs(disk.vx);                        // En este caso rebotamos hacia la derecha (velocidad positiva)
         }
-        disk.color = [255,0,255,255];
-
-        if (rect.py != field.h/2){
-            disk.vy = disk.vy;
-        }
-        // else { //ball down, go down
-        //     disk.vy = -1*Math.abs(disk.vy);
-        // }
-        disk.color = [255,0,255,255];
-
+        disk.color = [255,0,255,255];                           // Damos un color Magenta a la pelota para tener una retroalimentación visual de cuando sucede la colisión
     }
     else{
-        disk.color = [0,255,0,255];
-    }
-
-    // console.log(collision);
-    // if (collision && !inside)
-    // {
-    //     inside = true;
-    //     disk.color = [255,0,255,255];
-    //     //console.log("collision");
-    //     if (edge==0){disk.vx = -1*dir_x*disk.vx;
-    //     disk.vy = -1*dir_y*disk.vy;}
-    //     else if (edge==1){//left
-    //         disk.vx = -1 * Math.abs(disk.vx);
-    //     }
-    //     else if (edge==2){//right
-    //         disk.vy = -1 * Math.abs(disk.vy);
-    //     }
-    //     else if (edge==3){//top
-    //         disk.vx = 1 * Math.abs(disk.vx);
-    //     }
-    //     else if (edge==4){//bottom
-    //         disk.vy = 1 * Math.abs(disk.vy);
-    //     }
-    // }else {
-    //     if (collision==false){
-    //         inside = false;
-    //     }
-    //     disk.color = [0,255,0,255];
-    // }
-}
-
-function checkCircleRectCollision(disk,rect,tol=5){
-    //http://www.jeffreythompson.org/collision-detection/circle-rect.php
-    // temporary variables to set edges for testing
-    let cx = disk.px;
-    let cy = disk.py;
-    let rx = rect.px-rect.w/2;
-    let ry = rect.py-rect.h/2;
-    let rw = rect.w;
-    let rh = rect.h;
-    let testX = cx;
-    let testY = cy;
-    var radius = disk.radius;
-    var edgeX = 0;
-    var edgeY = 0;
-    // which edge is closest?
-    if (cx < rx)         {testX = rx;edgeX=1;}      // test left edge
-    else if (cx > rx+rw) {testX = rx+rw;edgeX=3;}   // right edge
-    if (cy < ry)         {testY = ry;edgeY=2;}      // top edge
-    else if (cy > ry+rh) {testY = ry+rh;edgeY=4;}   // bottom edge
-
-    // get distance from closest edges
-    var distX = cx-testX;
-    var distY = cy-testY;
-    var edge = 0;
-    if (distX <= distY)
-    {
-        edge = edgeX;
-    }
-    else{
-        edge = edgeY;
-    }
-    if (Math.abs(distX-distY)<=tol){
-        edge =0;//vertice
-    }
-    var distance = Math.sqrt( (distX*distX) + (distY*distY) );
-    //console.log(distance,radius);
-
-    // if the distance is less than the radius, collision!
-    if (distance <= radius) {
-    return [true,edge];
-    }
-    return [false,edge];
-    }
-
-function velocify(obj,threshold=10,max=20){
-    vel = 0;
-    obj.vx = plusOrMinus()* getRandomArbitrary(5,max);
-    obj.vy= plusOrMinus()* getRandomArbitrary(1,max);
-    vel = Math.sqrt(obj.vx*obj.vx+obj.vy*obj.vy);
-    if (vel<threshold){
-        if (obj.vx <= obj.vy){
-            obj.vx = threshold*get_sign(obj.vx);
-        }
-        else {
-            obj.vy = threshold*get_sign(obj.vy);
-        }
+        disk.color = [0,255,0,255];                             // Si no hubo colisión, dejamos el color original (Verde)
     }
 }
 
-function get_sign(num){
-    if (num>=0){
-        return 1;
-    }
-    else{
-        return -1;
-    }
-}
-function center(obj,w,h){
-    obj.px = Math.floor(w/2);
-    obj.py = Math.floor(h/2);
-}
-
-function detectScore(scores,ball,field){
-    if (field.TOP_GOAL <= ball.py && ball.py <= field.BOTTOM_GOAL)
-    {
-        if (ball.px - ball.radius <= field.LEFT_GOAL_L + field.goal_w/2){ //goal at left,right scores
-            scores.right +=1;
-            center(ball,field.w,field.h);
-            velocify(ball);
-            console.log("inside zone l");
-            console.log(ball.px);
-
-        }
-        if (ball.px + ball.radius >= field.RIGHT_GOAL_R - field.goal_w/2){ //goal at right,left scores
-            scores.left +=1;
-            center(ball,field.w,field.h);
-            velocify(ball);
-            console.log("inside zone r");
-            console.log(ball.px);
-
-        }
-
-    }
-
-}
-
-function getRandomArbitrary(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
-function plusOrMinus(){
-    return Math.random() < 0.5 ? -1 : 1;
-}
-
-function botsify(striker,ball,difficulty,counter){
-    //MAKE BOT ONLY LOOK FOR BALL IF IN HIS SIDE
-    //MAKE BOT RETURN TO CENTER WHEN BALL IN THE OTHER SIDE
-    if (counter >= difficulty){
-    let diff = ball.py - striker.py;
-    if (diff > 0){
-        move_striker(striker,0,1);
-    }
-    else{
-        move_striker(striker,0,-1);
-    }
-    counter = 0;
-    }
-    else{
-        counter += 1;
-    }
-    return counter
+function checkCircleRectCollision(disk,rect){                        // Función que determina si hay colisión entre un circulo y un rectangulo
+                                                                     // Inspirada en http://www.jeffreythompson.org/collision-detection/circle-rect.php
+    let cx = disk.px;                                                // Coordenada x del centro del circulo
+    let cy = disk.py;                                                // Coordenada x del centro del circulo
+    let rx = rect.px-rect.w/2;                                       // Coordenada x de la esquina superior izquierda del rectangulo
+    let ry = rect.py-rect.h/2;                                       // Coordenada y de la esquina superior izquierda del rectangulo
+    let rw = rect.w;                                                 // Ancho del rectangulo
+    let rh = rect.h;                                                 // Altura del rectangulo
     
+    let testX = cx;                                                  // Variable auxiliar que va a guardar la coordenada "x" del borde 
+                                                                     // más cercano al disco, inicializado en la posición del centro
+                                                                     // del disco por si este esta dentro del rectangulo
+
+    let testY = cy;                                                  // Variable auxiliar que va a guardar la coordenada "y" del borde
+                                                                     // más cercano al disco, inicializado en la posición del centro
+                                                                     // del disco por si este esta dentro del rectangulo
+
+    var radius = disk.radius;                                        // Radio del disco
+
+                                                                     // Descubrimos cual es el borde más cercano al disco en lo que sigue:
+
+    if (cx < rx)         {testX = rx;}                               // Si el centro.x del disco esta antes del borde izquierdo, la colisión se dió en el borde izquierdo (rx)
+    else if (cx > rx+rw) {testX = rx+rw;}                            // Si el centro.x del disco esta luego del borde derecho, la colisión se dió en el borde derecho (rx+rw)
+                                                                     // De lo contrario estamos dentro del rango horizontal del rectangulo
+
+    if (cy < ry)         {testY = ry;}                               // Si el centro.y del disco esta antes del borde superior, la colisión se dió en el borde superior (ry)
+    else if (cy > ry+rh) {testY = ry+rh;}                            // Si el centro.y del disco esta luego del borde inferior, la colisión se dió en el borde inferior (ry+rh)
+                                                                     // De lo contrario estamos dentro del rango vertical del rectangulo
+
+                                                                     // Obtenemos la distancia del centro del disco al borde más cercano del rectángulo
+    var distX = cx-testX;                                            // Distancia horizontal, si esta dentro del rango "x" del rectangulo será 0
+    var distY = cy-testY;                                            // Distancia vertical, si esta dentro del rango "y" del rectangulo será 0
+
+    var distance = Math.sqrt( (distX*distX) + (distY*distY) );       // Distancia del centro del disco al rectangulo, si da 0 quiere decir que es dentro del rectangulo
+
+    if (distance <= radius) {                                        // Verificamos si la distancia es menor al radio del circulo
+    return true;                                                     // En caso de que sí, hay colisión
+    }
+    return false;                                                    // De resto no.
+    }
+
+//-----------------------------------------------------------------------------------------------
+//-------Inteligencia Artificial del Oponente----------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+function botsify(striker,ball,field){
+    let diff;                                                                // Función que mueve la raqueta de forma autónoma dada la raqueta,la pelota y el campo
+                                                                             // La idea es que el bot iguale la posicion de la pelota si se encuentra de su lado, 
+                                                                             // sino que vuelva al medio de su área
+    if (get_sign(ball.px-field.HMID) == get_sign(striker.px-field.HMID)){    // Verificamos si la pelota se encuentra del lado del bot
+        diff = ball.py - striker.py;                                         // Obtenemos la diferencia entre la posición vertical del bot y la pelota
+    }
+    else{
+        diff = field.VMID - striker.py;                                      // Obtenemos la diferencia entre el centro.y del campo y la posición "y" del bot
+    }
+
+    if (diff ==0){                                                           // Si no hay diferencia no hay necesidad de moverse
+        return
+    }
+
+    if (diff > 0){                                                           // Si es positiva...
+        move_striker(striker,0,1);                                           // Movemos el bot hacia arriba
+    }    
+    else{                                                                    // De lo contrario
+        move_striker(striker,0,-1);                                          // Movemos el bot hacia abajo
+    }
+
 }
+
+//-----------------------------------------------------------------------------------------------
+//-------Funciones Auxiliares--------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------
+function get_sign(num){    // Función que obtiene el signo de un número representado por 1 o -1
+    if (num>=0){           // Si es número es mayor o igual a 0
+        return 1;          // signo positivo (1)
+    }
+    else{                  // De lo contrario es negativo
+        return -1;         // signo negativo (-1)
+    }
+}
+
+function getRandomArbitrary(min, max) {        // Función que retorna un número aleatorio en un rango de min a max
+    return Math.random() * (max - min) + min;  // Obtiene un porcentaje del rango con el que desplazarse desde el valor mínimo
+}
+
+function plusOrMinus(){                        // Función que obtiene un signo aleatorio (positivo o negativo)
+    return Math.random() < 0.5 ? -1 : 1;       // Simplemente desde una distribución normal si es mayor o menor a 0.5 (la mitad)
+}
+

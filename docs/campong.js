@@ -38,7 +38,6 @@
 
 
 const canvasElement = document.getElementById('canvas');
-var inside = false; // to know if the is inside the ball and has not bounced yet
 var streaming=true;
 var cfg={
     low_th:30,
@@ -112,8 +111,6 @@ let b = new cv.Mat();
 
 let dtype = -1;
 let out_frame = dst;//frame,hsv;
-let bot_counter = 0;
-let bot_difficulty = 0; //lower is harder
 
 function processVideo() {
     try {
@@ -254,10 +251,10 @@ function processVideo() {
 
 
         drawField(out_frame,field);
-        bounceFromRect(puck,strikerl,inside,field);
-        bounceFromRect(puck,strikerr,inside,field);
+        bounceFromRect(puck,strikerl,field);
+        bounceFromRect(puck,strikerr,field);
         moveObject(puck);
-        bot_counter=botsify(strikerl,puck,bot_difficulty,bot_counter);
+        botsify(strikerl,puck,field);
         detectScore(scores,puck,field);// detecting scores must be before bouncing from walls
         bounceFromField(puck,field);
         drawBall(puck,out_frame);
