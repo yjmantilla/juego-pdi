@@ -106,10 +106,10 @@ const FPS = 30;                                                         // Frame
 let cap = new cv.VideoCapture(video);                                   // Instancia de la clase de captura de video de opencv
 let streaming = true;                                                   // Booleano que indica si la camara esta transmitiendo video
 let frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);          // Reserva de una matriz frame que es la captura de la imagen de un video en un tiempo especifico RGBA: 4 canales de unsigned integer 8
-let dummyFrame = new cv.Mat();                                          // Reserva de la matriz auxiliar que irá guardando la imagen actual en cada momento
+let dummyFrame = new cv.Mat(video.height, video.width, cv.CV_8UC4);     // Reserva de la matriz auxiliar que irá guardando la imagen actual en cada momento
 let rgbPlanes = new cv.MatVector();                                     // Reserva de un vector que guardara las capas de color de la imagen RGB por separado
-let the_color = new cv.Mat();                                           // Reserva de una matriz que guardara unicamente la capa de color indicada por el usuario
-let out_frame = new cv.Mat();                                           // Reserva de una matriz que almacenará el fondo del campo proyectado en el juego
+let the_color = new cv.Mat(video.height, video.width, cv.CV_8UC4);      // Reserva de una matriz que guardara unicamente la capa de color indicada por el usuario
+let out_frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);      // Reserva de una matriz que almacenará el fondo del campo proyectado en el juego
 let contours = new cv.MatVector();                                      // Vector de Matrices que contendrá contornos
 let hierarchy = new cv.Mat();                                           // Matriz que guardará las jerarquías de esos contornos
 
@@ -159,18 +159,18 @@ function processVideo() {                               // Función que realiza 
 
         cv.cvtColor(dummyFrame, dummyFrame, cv.COLOR_RGB2GRAY); // Conversión de RGB a Escala de Grises
         if (cfg.frame=='grey'){                                 // Verificar si el usuario marcó "gray" para el fondo
-            out_frame = dummyFrame.clone();                             // En tal caso, seleccionar como fondo la escala de grises
+            out_frame = dummyFrame.clone();                     // En tal caso, seleccionar como fondo la escala de grises
         }
 
         the_color = rgbPlanes.get(cfg.get_color());             // Obtener la capa marcada por el usuario en las opciones
         if (cfg.frame=='the_color'){                            // Verificar si el usuario marcó "the_color" para el fondo
-            out_frame = the_color;                              // En tal caso, seleccionar como fondo la capa de color
+            out_frame = the_color.clone();                              // En tal caso, seleccionar como fondo la capa de color
         }
 
         //cv.equalizeHist(the_color,the_color);                 // Ecualización del histograma de la capa de color seleccionada, no dió resulados relevantes...
         cv.subtract(the_color, dummyFrame, dummyFrame);         // Comparamos la capa de color seleccionado contra la escala de grises.
         if (cfg.frame=='subtract'){                             // Verificar si el usuario marcó "subtract" para el fondo
-            out_frame = dummyFrame.clone();                             // En tal caso, seleccionar como fondo la resta calculada
+            out_frame = dummyFrame.clone();                     // En tal caso, seleccionar como fondo la resta calculada
         }
 
 //-------Binarización según lo encontrado previamente--------------------------------------------
