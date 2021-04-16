@@ -94,10 +94,11 @@ let striker_vel = 5;                                                // Velocidad
 let strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,      // Instanciación de la raqueta izquierda
     field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),
     striker_vel,striker_vel);
-let strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,      // Instaciación de la raqueta derecha
+let  strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,     // Instanciación de la raqueta derecha
     field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),
     striker_vel,striker_vel);
-velocify(puck,game.thr,game.max_vel);
+
+    velocify(puck,game.thr,game.max_vel);                               // Dar velocidad Inicial a la peloca    
 
 //-----------------------------------------------------------------------------------------------
 //-------Inicialización de Variables de OPENCV---------------------------------------------------
@@ -107,12 +108,11 @@ let cap = new cv.VideoCapture(video);                                   // Insta
 let streaming = true;                                                   // Booleano que indica si la camara esta transmitiendo video
 let frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);          // Reserva de una matriz frame que es la captura de la imagen de un video en un tiempo especifico RGBA: 4 canales de unsigned integer 8
 let dummyFrame = new cv.Mat(video.height, video.width, cv.CV_8UC4);     // Reserva de la matriz auxiliar que irá guardando la imagen actual en cada momento
-let rgbPlanes = new cv.MatVector();                                     // Reserva de un vector que guardara las capas de color de la imagen RGB por separado
 let the_color = new cv.Mat(video.height, video.width, cv.CV_8UC4);      // Reserva de una matriz que guardara unicamente la capa de color indicada por el usuario
-let out_frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);      // Reserva de una matriz que almacenará el fondo del campo proyectado en el juego
 let contours = new cv.MatVector();                                      // Vector de Matrices que contendrá contornos
 let hierarchy = new cv.Mat();                                           // Matriz que guardará las jerarquías de esos contornos
-
+let out_frame = new cv.Mat(video.height, video.width, cv.CV_8UC4);      // Reserva de una matriz que almacenará el fondo del campo proyectado en el juego
+let rgbPlanes = new cv.MatVector();                                     // Reserva de un vector que guardara las capas de color de la imagen RGB por separado
 //-----------------------------------------------------------------------------------------------
 //-------Procesamiento de la imagen y su influencia en el juego----------------------------------
 //-----------------------------------------------------------------------------------------------
@@ -122,6 +122,7 @@ function processVideo() {                               // Función que realiza 
     {
 
 //-------Inicialización, Reserva y Eliminación de Variables--------------------------------------
+
 
         if (!streaming) {                               // Si ya no se esta capturando video
             frame.delete();out_frame.delete();          // Borrar variables Inutilizadas
@@ -137,8 +138,10 @@ function processVideo() {                               // Función que realiza 
 //-------Obtención de la Imagen Cruda------------------------------------------------------------
 
         cap.read(frame);                                        // Lectura del frame de la camara
+        cv.flip(frame, frame, 1);                                                                                               // Giro en espejo del fondo, esto es para que concuerde de forma intuitiva la imagen mostrada con la posición del usuario
+
         if (cfg.frame=='raw'){                                  // Seleccionar imagen cruda como fondo
-            out_frame=frame;
+            draw(frame,field,puck,strikerl,strikerr)
         }
         
 //-------Conversion de RGBA a RGB----------------------------------------------------------------
@@ -150,34 +153,45 @@ function processVideo() {                               // Función que realiza 
 
         cv.blur(dummyFrame, dummyFrame, tileGridSize);          // Difuminación
         if(cfg.frame=='blur'){                                  // Verificar si el usuario marcó "blur" como fondo
-            out_frame=dummyFrame.clone();                               // En tal caso, Seleccionar como imagen de fondo la difuminación
+            draw(dummyFrame,field,puck,strikerl,strikerr)
         }
 
 //-------Búsqueda del objeto mediante uno de los canales RGB-------------------------------------
-
         cv.split(dummyFrame, rgbPlanes);                        // Separar la imagen RGB en los 3 canales
 
         cv.cvtColor(dummyFrame, dummyFrame, cv.COLOR_RGB2GRAY); // Conversión de RGB a Escala de Grises
         if (cfg.frame=='grey'){                                 // Verificar si el usuario marcó "gray" para el fondo
-            out_frame = dummyFrame.clone();                     // En tal caso, seleccionar como fondo la escala de grises
+            cv.cvtColor(dummyFrame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+            draw(out_frame,field,puck,strikerl,strikerr)
         }
 
         the_color = rgbPlanes.get(cfg.get_color());             // Obtener la capa marcada por el usuario en las opciones
         if (cfg.frame=='the_color'){                            // Verificar si el usuario marcó "the_color" para el fondo
-            out_frame = the_color.clone();                              // En tal caso, seleccionar como fondo la capa de color
+            let idxs = [0,1,2];
+            idxs.splice(cfg.get_color(),1);
+            the_color.convertTo(out_frame, cv.CV_8UC1, 0, 0);   //Obtener una matriz de ceros en out_frame
+            idxs.forEach(element => {
+                rgbPlanes.set(element,out_frame);               // Volver cero los otros canales
+            });
+            //console.log(rgbPlanes);
+            cv.merge(rgbPlanes,out_frame);
+            //console.log(out_frame);
+            //cv.cvtColor(the_color,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+            draw(out_frame,field,puck,strikerl,strikerr)
         }
-
         //cv.equalizeHist(the_color,the_color);                 // Ecualización del histograma de la capa de color seleccionada, no dió resulados relevantes...
         cv.subtract(the_color, dummyFrame, dummyFrame);         // Comparamos la capa de color seleccionado contra la escala de grises.
         if (cfg.frame=='subtract'){                             // Verificar si el usuario marcó "subtract" para el fondo
-            out_frame = dummyFrame.clone();                     // En tal caso, seleccionar como fondo la resta calculada
+            cv.cvtColor(dummyFrame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+            draw(out_frame,field,puck,strikerl,strikerr)
         }
 
 //-------Binarización según lo encontrado previamente--------------------------------------------
 
         cv.threshold(dummyFrame,dummyFrame, Math.min(cfg.low_th,cfg.high_th), Math.max(cfg.low_th,cfg.high_th), cv.THRESH_BINARY);      // Umbralización de la resta hecha
         if (cfg.frame=='binary'){                                                                                                       // Verificar si el usuario marcó "Binario" para el fondo
-            out_frame = dummyFrame.clone();                                                                                                     // En tal caso, seleccionar como fondo la umbralización
+            cv.cvtColor(dummyFrame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+            draw(out_frame,field,puck,strikerl,strikerr)
         }
 
 //-------Otra Difuminación para eliminar más ruido-----------------------------------------------
@@ -193,14 +207,9 @@ function processVideo() {                               // Función que realiza 
         cv.morphologyEx(dummyFrame,dummyFrame, cv.MORPH_CLOSE, M);                                                                      // Operación de Cerrar para cerrar huecos.
 
         if (cfg.frame=='morph'){                                                                                                        // Verificar si el usuario marcó "morph" para el fondo
-            out_frame = dummyFrame.clone();                                                                                                     // En tal caso, seleccionar como fondo la imagen resultante de la morfología
+            cv.cvtColor(dummyFrame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+            draw(out_frame,field,puck,strikerl,strikerr)
         }
-
-//-------Correciones de la orientación horizonal de la imagen------------------------------------
-
-        cv.flip(out_frame, out_frame, 1);                                                                                               // Giro en espejo del fondo, esto es para que concuerde de forma intuitiva la imagen mostrada con la posición del usuario
-        cv.flip(dummyFrame, dummyFrame, 1);                                                                                             // La necesidad de invertir en este caso se infiere empiricamente. (Sabía la razón exacta en algún momento pero no la escribí...)
-
 
 //-------Segmentación de la Imagen---------------------------------------------------------------
 
@@ -229,42 +238,33 @@ function processVideo() {                               // Función que realiza 
                 }
             let color = new cv.Scalar(255,0,0);                                                                                         // Usaremos blanco para pintar el contorno
             cv.drawContours(out_frame, contours, selected, color, 1, cv.LINE_8, hierarchy, 100);                                        // Pintamos el contorno
-
+            color=null//.delete();
         }
 
 
 
 //-------Correciones de color para mostrar el fondo----------------------------------------------
 
-if (cfg.frame!='raw'&& cfg.frame!='blur'){                  // En caso de que el fondo escogido aún no este en el espacio RGB, toca convertirlo
-    cv.cvtColor(out_frame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
-}
+// if (cfg.frame!='raw'&& cfg.frame!='blur'){                  // En caso de que el fondo escogido aún no este en el espacio RGB, toca convertirlo
+//     cv.cvtColor(out_frame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+// }
 
 //----Ya identificada la posición de la raqueta del usuario, seguimos con la logica del juego----
 
-        drawField(out_frame,field);                                 // Pintar el campo
         bounceFromRect(puck,strikerl,field);                        // Rebotar la pelota de la raqueta del computador
         bounceFromRect(puck,strikerr,field);                        // Rebotar la pelota de la raqueta del usuario
         moveObject(puck);                                           // Mover la pelota
         botsify(strikerl,puck,field);                               // Mover el bot
         detectScore(scores,puck,field,game.thr,game.max_vel);       // Detectar Goles, debe hacer antes de rebotar con las paredes ya que si no solo rebotaria
         bounceFromField(puck,field);                                // Rebotar de las paredes
-        drawBall(puck,out_frame);                                   // Pintar la pelota
-        drawRectFromCenter(strikerl,out_frame);                     // Pintar raqueta del bot
-        drawRectFromCenter(strikerr,out_frame);                     // Pintar raqueta del jugador
         d3.select('#scorel').text(scores.left);                     // Mostrar marcador del bot
         d3.select('#scorer').text(scores.right);                    // Mostrar marcador del jugador
 
-
-
-
-//-------Visualización y llamada al siguiente frame----------------------------------------------
-
-        cv.imshow('canvasOut', out_frame);                          // Mostrar la imagen pintada en el canvas del html
-
+        tileGridSize=null //.delete();
+        ksize=null//.delete();
+        M=null//.delete();
 
         requestAnimationFrame(processVideo);                        // Pasa a procesar el siguiente frame cuando el browser este listo
-
     } 
     catch (err) {                                                   // Esto es un mecanismo de control de errores
         console.log(err);                                           // Imprimir el error en consola
@@ -291,3 +291,12 @@ document.addEventListener("keydown", function(event) {              // Función 
 });
 
 requestAnimationFrame(processVideo);                                // Esta es realmente la línea que inicia todo al llamar a proceesVideo, sin ella no se hiciera nada
+
+
+function draw(frame,field,puck,strikerl,strikerr){
+    let f;
+    f = frame.clone();
+    drawAll(f,field,puck,strikerl,strikerr)
+    cv.imshow('canvasOut',f);                          // Mostrar la imagen pintada en el canvas del html
+    f.delete();
+}

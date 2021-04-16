@@ -96,6 +96,13 @@ function drawRectFromCenter(obj,frame){                                         
     cv.rectangle(frame,top_left,bottom_right,obj.color,3);                                          // Pintamos el rectangulo a partir de ambos puntos
 }
 
+function drawAll(out_frame,field,puck,strikerl,strikerr){
+    drawField(out_frame,field);                                 // Pintar el campo
+    drawBall(puck,out_frame);                                   // Pintar la pelota
+    drawRectFromCenter(strikerl,out_frame);                     // Pintar raqueta del bot
+    drawRectFromCenter(strikerr,out_frame);                     // Pintar raqueta del jugador
+}
+
 //-----------------------------------------------------------------------------------------------
 //-------Lógica de Goles-------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------
