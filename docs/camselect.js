@@ -4,6 +4,8 @@
 *  Use of this source code is governed by a BSD-style license
 *  that can be found in the LICENSE file in the root of the source
 *  tree.
+*  Código inspirado en: https://github.com/webrtc/samples/blob/gh-pages/src/content/devices/input-output/js/main.js
+*  Como no es propiamente de nosotros, no se comentó.
 */
 
 'use strict';
