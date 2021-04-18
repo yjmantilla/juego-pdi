@@ -200,22 +200,19 @@ function processVideo() {                               // Función que realiza 
 
         cv.morphologyEx(dummyFrame,dummyFrame, cv.MORPH_CLOSE, M);   // Operación de Cerrar para cerrar huecos.
 
-        if (cfg.frame=='morph'){                                     // Verificar si el usuario marcó "morph" para el fondo
-            cv.cvtColor(dummyFrame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
-            draw(out_frame,field,puck,strikerl,strikerr)
-        }
 
 //-------Segmentación de la Imagen---------------------------------------------------------------
+
+        let max_contour = 0;                                                                           // Variable donde guardaremos el maximo contorno que hemos encontrado
+        let selected = 0;                                                                              // Aquí guardaremos el índice del máximo contorno hallado
+        let color = new cv.Scalar(255,0,0);                                                            // Usaremos rojo para pintar el contorno
 
         if (cfg.segmentation=='true'){                                                                                                  // Si el proceso de Segmentación esta activo
 
 //-------Encontrar el contorno más grande con el color de nuestro marcador-----------------------
 
             cv.findContours(dummyFrame, contours, hierarchy, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE);       // Encontramos los contornos de la imagen ya procesada por todos los pasos anteriores
-                                                                                                           // Buscamos ahora el contorno más grande, que será en principio nuestro objeto que se desea identificar
-            let max_contour = 0;                                                                           // Variable donde guardaremos el maximo contorno que hemos encontrado
-            let selected = 0;                                                                              // Aquí guardaremos el índice del máximo contorno hallado
-            
+                                                                                                           // Buscamos ahora el contorno más grande, que será en principio nuestro objeto que se desea identificar  
             for (let i = 0; i < contours.size(); ++i) {                                                    // Recorremos los contornos para saber cual es el mayor
                 if (max_contour < contours.get(i).rows)                                                    // Si el contorno actual es mayor a nuestro mayor contorno encontrado hasta ahorita...
                     {
@@ -223,16 +220,20 @@ function processVideo() {                               // Función que realiza 
                     let Moments = cv.moments(cnt, false);                                                  // Calculamos los momentos de ese contorno
                     let cx = Moments.m10/Moments.m00                                                       // Inferimos centroide.x con los momentos
                     let cy = Moments.m01/Moments.m00                                                       // Inferimos centroide.y con los momentos
-                    max_contour = contours.get(i).rows;                                                    // Reemplazamos nuestro contorno más grande encontrado
+                    max_contour = Moments.m00;                                                             // Reemplazamos nuestro contorno más grande encontrado
                     strikerr.px = cx;                                                                      // Colocamos la raqueta.x en el centroide.x
                     strikerr.py = cy;                                                                      // Colocamos la raqueta.y en el centroide.y
                     selected = i;                                                                          // Guardamos el contorno escogido en la variable selected
                     }
                 
                 }
-            let color = new cv.Scalar(255,0,0);                                                            // Usaremos blanco para pintar el contorno
-            cv.drawContours(out_frame, contours, selected, color, 1, cv.LINE_8, hierarchy, 100);           // Pintamos el contorno
+        }
+
+        if (cfg.frame=='morph'){                                     // Verificar si el usuario marcó "morph" para el fondo
+            cv.cvtColor(dummyFrame,out_frame, cv.COLOR_GRAY2RGB);    // Conversión al espacio RGB
+            cv.drawContours(out_frame, contours, selected, color, 3, cv.LINE_8, hierarchy, 100);           // Pintamos el contorno
             color=null                                                                                     // Eliminamos variable para conservar memoria
+            draw(out_frame,field,puck,strikerl,strikerr)
         }
 
 //----Ya identificada la posición de la raqueta del usuario, seguimos con la logica del juego----
