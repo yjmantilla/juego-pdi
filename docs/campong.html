@@ -1,38 +1,53 @@
-<!DOCTYPE html>
-<html>
-<!-- Encabezado del html. Define metadatos del documento. -->
-<head>
-    <meta charset="utf-8">
-    <meta name="description" content="camPong">
-    <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
-    <title>campong!</title>
+<!-----------------------------------------------------------------------------------------------
+//----------------------------------Código HTML del Juego----------------------------------------
+//-----------------------------------------------------------------------------------------------
+//-------------Alexis Rafael del Carmen Ávila Ortiz--------CC 1083555169-------------------------
+//------------ alexis.avila@udea.edu.co--------------------Wpp +57 305 2230574-------------------
+//-----------------------------------------------------------------------------------------------
+//-------------Yorguin José Mantilla Ramos-----------------CC 1127617499-------------------------
+//-------------yorguinj.mantilla@udea.edu.co---------------Wpp +57 311 5154452-------------------
+//-----------------------------------------------------------------------------------------------
+//----------------------Estudiantes Facultad de Ingenieria  -------------------------------------
+//--------Curso Básico de Procesamiento de Imágenes y Visión Artificial--------------------------
+//---------------------------Abril de 2021-------------------------------------------------------
+//---------------------------------------------------------------------------------------------->
+
+<!DOCTYPE html>                                 <!-- Declaración del tipo de documento -->
+<html>                                          <!-- Inicio del html -->
+<head>                                          <!-- Encabezado del html. Define metadatos del documento. -->
+    <meta charset="utf-8">                      <!-- Codificación de los carácteres -->
+    <meta name="description" content="camPong"> <!-- Descripción del documento -->
+    <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">  <!-- Propiedades de Visualización -->
+    <title>campong!</title>                     <!-- Título del documento -->
 </head>
 
 <body>
 
-<!-- Elemento html para seleccionar la cámara -->
-<div id="container" align="center">
-    <div class="select">
-        <label for="videoSource">Video source: </label><select id="videoSource"></select>
+<!-- Elementos html para la selección de la cámara -->
+
+<div id="container" align="center">             <!-- División html para el selector de cámara -->
+    <div class="select">                        <!-- Clase selector -->
+        <label for="videoSource">Video source: </label><select id="videoSource"></select>    <!-- El selector en sí -->
     </div>
 </div>
 
-<!-- Elemento html para colocar los puntajes -->
-<div align="center">
-    <div style="display: inline-block">
-        <h3>score: <span id="scorel"></span></h3>
+<!-- Elementos html para colocar puntajes -->
+
+<div align="center">                             <!-- División y Centrado -->
+    <div style="display: inline-block">          <!-- División -->
+        <h3>score: <span id="scorel"></span></h3>   <!-- Elemento html para colocar puntaje del bot-->
     </div>
-    <div style="display: inline-block">
-        <h3>score: <span id="scorer"></span></h3>
+    <div style="display: inline-block">          <!-- División -->
+        <h3>score: <span id="scorer"></span></h3>   <!-- Elemento html para colocar puntaje del jugador -->
     </div>
 </div>
 
 <!-- Elementos html del canvas (donde se coloca el juego) y el video la webcam -->
-<div align="center">
-    <div>
-    <canvas id="canvas" class="d-none"></canvas>
+<div align="center">                                                                <!-- División y Centrado -->
+    <div>                                                                           <!-- División -->
+    <canvas id="canvas" class="d-none"></canvas>                                    <!-- Elemento canvas donde pintar -->
     </div>
-    <video id="video" playsinline autoplay width="640" height="480"></video>
+    <video id="video" playsinline autoplay width="640" height="480"></video>        <!-- Elemento para el video de la webcam -->
 </div>
 
 <!-- Librerías a usar -->
