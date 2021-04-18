@@ -31,7 +31,6 @@ function gotDevices(deviceInfos) {
     }
     // else {
     //   //console.log('Some other kind of source/device: ', deviceInfo);
-    //   noe
     // }
   }
   selectors.forEach((select, selectorIndex) => {
