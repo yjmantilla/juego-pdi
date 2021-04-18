@@ -282,6 +282,6 @@ function draw(frame,field,puck,strikerl,strikerr){
     let f;                                             // Variable auxiliar donde copiar el frame
     f = frame.clone();                                 // Clonar el frame para no alterar el espacio de memoria original
     drawAll(f,field,puck,strikerl,strikerr)            // Pintar elementos del juego
-    cv.imshow('canvas',f);                          // Mostrar la imagen pintada en el canvas del html
+    cv.imshow('canvas',f);                             // Mostrar la imagen pintada en el canvas del html
     f.delete();                                        // Eliminamos variable para conservar memoria
 }
