@@ -1,42 +1,48 @@
 # Campong
 
-[game](https://yjmantilla.github.io/juego-pdi/campong.html)
+## Para correr online
 
+[Dar click aquí!](https://yjmantilla.github.io/juego-pdi/campong.html)
 
-## Welcome to GitHub Pages
+## Para correr localmente
 
-You can use the [editor on GitHub](https://github.com/yjmantilla/juego-pdi/edit/main/docs/index.md) to maintain and preview the content for your website in Markdown files.
+1 Instalar web server for chrome : [link] (https://chrome.google.com/webstore/detail/web-server-for-chrome/ofhbbkphhbklhfoeikjpcbhemlocgigb)
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+![1](/docs/1.png)
 
-### Markdown
+2 Seleccionar la carpeta que contiene el archivo campong.html
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+![2](/docs/2.png)
 
-```markdown
-Syntax highlighted code block
+3 Inicializar el servidor
 
-# Header 1
-## Header 2
-### Header 3
+![3](/docs/3.png)
 
-- Bulleted
-- List
+4 Viajar a la dirección que indica la ventana
 
-1. Numbered
-2. List
+![4](/docs/4.png)
 
-**Bold** and _Italic_ and `Code` text
+5 Abrir el archivo campong.html
 
-[Link](url) and ![Image](src)
-```
+![5](/docs/5.png)
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+## Configuración del reconocimiento
 
-### Jekyll Themes
+1 Abrir el panel de control
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/yjmantilla/juego-pdi/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+![open](/docs/open_panel.png)
 
-### Support or Contact
+2 Escoger un objeto rojo, verde, o azul. Idealmente el color menos común en tu ambiente.
 
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+![select](/docs/select_color.png)
+
+3 Ir a el fondo de "morph", en este se puede ver facílmente si el reconocimiento está funcionando.
+
+![morp](/docs/morph.png)
+
+4 Configurar el procesamiento para facilitar el reconocimiento. Lo que mejor resulta configurar es:
+
+- El límite inferior del umbral "low_th"
+- El tamaño del kernel para el suavizado "blur_ksize"
+
+![recon](/docs/recon.png)
