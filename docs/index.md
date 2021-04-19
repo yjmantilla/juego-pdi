@@ -8,7 +8,7 @@
 
 1 Instalar web server for chrome : [link] (https://chrome.google.com/webstore/detail/web-server-for-chrome/ofhbbkphhbklhfoeikjpcbhemlocgigb)
 
-![1](/docs/1.png)
+![1](/1.png)
 
 2 Seleccionar la carpeta que contiene el archivo campong.html
 
