@@ -81,15 +81,15 @@ cfgFolder.add(cfg, 'segmentation',['true','false']);                            
 //-------Instanciación de elementos del Juego----------------------------------------------------
 //-----------------------------------------------------------------------------------------------
 let puck = new Disk(5,200,200,0,0);                                 // Instancia de la pelota
-let field = new Field(640,480,5,5,5,200);                           // Instancia del campo
+let field = new Field(640,480,5,5,5,400);                           // Instancia del campo
 let scores = new Scores(0,0);                                       // Instancia de los marcadores
 let striker_margin = 0;                                             // Margen de las raquetas respecto a los bordes del campo
 let striker_vel = 5;                                                // Velocidad de las raquetas
 let strikerl = new Striker(field.LEFT_GOAL_R + striker_margin,      // Instanciación de la raqueta izquierda
-    field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),
+    field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/4),
     striker_vel,striker_vel);
 let  strikerr = new Striker(field.RIGHT_GOAL_L- striker_margin,     // Instanciación de la raqueta derecha
-    field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/3),
+    field.VMID,Math.floor(field.w/10),Math.floor(field.goal_h/4),
     striker_vel,striker_vel);
 
     velocify(puck,game.thr,game.max_vel);                           // Dar velocidad Inicial a la pelota
